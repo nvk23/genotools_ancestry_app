@@ -15,7 +15,7 @@ config_page('Home')
 place_logos()
 
 # Main title
-st.markdown("<h1 style='text-align: center; color: #0f557a; font-family: Helvetica; '>GP2 Internal Cohort Browser</h1>", unsafe_allow_html=True)
+st.markdown("<h1 style='text-align: center; color: #0f557a; font-family: Helvetica; '>GenoTools Browser</h1>", unsafe_allow_html=True)
 
 # Page formatting 
 sent1, sent2, sent3 = st.columns([1,6,1])  # holds brief overview sentences
@@ -23,7 +23,7 @@ exp1, exp2, exp3 = st.columns([1, 2, 1])  # holds expander for full description
 
 # sent2.markdown("##### Interactive tool to visualize quality control and ancestry prediction summary statistics across all GP2 cohorts. #####")
 sent2.markdown("<h5 style='text-align: center; '>Interactive tool to visualize quality control and ancestry prediction summary statistics\
-             across all GP2 cohorts. Please select a page marked with \U0001F9EC in the sidebar to begin.</h1>", unsafe_allow_html=True)
+             output by GenoTools. Please select a page marked with \U0001F9EC in the sidebar to begin.</h1>", unsafe_allow_html=True)
 
 # # Display expander with full project description
 overview = exp2.expander("Full Description", expanded=False)
@@ -82,7 +82,7 @@ with overview:
                 the test set for prediction after model training.')
 
     st.markdown('### _UMAP + Classifier Training_')
-    st.markdown('A classifier was then trained using UMAP transformations of the PCs and a linear support vector classifier using a 5-fold\
+    st.markdown('A classifier was then trained using UMAP transformations of the PCs and a extreme gradient boosting classifier (XGBoost) using a 5-fold\
                 cross-validation using an sklearn pipeline and scored for balanced accuracy with a gridsearch over the following parameters:')
     st.markdown(
                 """
@@ -90,19 +90,14 @@ with overview:
                 - “umap__n_components”: [15,25]
                 - “umap__a”: [0.75, 1.0, 1.5]
                 - “umap__b”: [0.25, 0.5, 0.75]
-                - “svc__C”: [0.001, 0.01, 0.1, 1, 10, 100]
+                - “xgb__C”: [0.001, 0.01, 0.1, 1, 10, 100]
                 """
                 )
     st.markdown('Performance varies from 95-98% balanced accuracy on the test set depending on overlapping genotypes.')
 
     st.markdown('### _Prediction_')
     st.markdown('Scaled PCs for genotypes are transformed using UMAP trained fitted by the training set and then predicted by the classifier. \
-                 Genotypes are split and output into individual ancestries. Prior to release 5, AAC and AFR labels were combined into a \
-                 single category and ADMIXTURE 1 (v1.3.0-https://dalexander.github.io/admixture/binaries/admixture_linux-1.3.0.tar.gz) \
-                was run using the --supervised functionality to further divide these two categories where AFR was assigned if AFR admixture \
-                was >=90% and AAC was assigned if AFR admixture was <90%. From release 5 on, the AFR and AAC sample labels in the reference panel \
-                 are adjusted using a perceptron model, and the predictions based on the updated reference panel labels effectively estimate the \
-                results from the ADMIXTURE step that was previously used.')
+                 Genotypes are split and output into individual ancestries.')
 
     st.caption('**_References_**')
     st.caption('_D.H. Alexander, J. Novembre, and K. Lange. Fast model-based estimation of ancestry in unrelated individuals. Genome Research, 19:1655–1664, 2009._')

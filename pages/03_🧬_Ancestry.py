@@ -6,7 +6,7 @@ import numpy as np
 import pandas as pd
 import streamlit as st
 import plotly.express as px
-from hold_data import blob_as_csv, get_gcloud_bucket, cohort_select, release_select, config_page, admix_ancestry_select
+from hold_data import config_page, place_logos
 
 
 # Plots 3D PCA
@@ -86,65 +86,44 @@ def plot_pie(df):
 
 config_page('Ancestry')
 
-release_select()
-
-# Pull data from different Google Cloud folders
-gp2_data_bucket = get_gcloud_bucket('gp2tier2')
+place_logos()
 
 # Gets master key (full GP2 release or selected cohort)
-master_key_path = f'{st.session_state["release_bucket"]}/clinical_data/master_key_release{st.session_state["release_choice"]}_final.csv'
-master_key = blob_as_csv(gp2_data_bucket, master_key_path, sep=',')
-cohort_select(master_key)
-
-pca_folder = f'{st.session_state["release_bucket"]}/meta_data/qc_metrics'
-
-# Update when re-add Upload Data feature
-# if ('cohort_choice' in st.session_state) and ('upload_data_path' not in st.session_state):
-#     st.title(f'Cohort: {st.session_state["cohort_choice"]}')
-#     master_key = st.session_state['master_key']
-# else:
-#     geno_path = st.session_state['upload_data_path']
-#     ref_labels = f'ref_panel_ancestry.txt'
-#     out_path = st.session_state['upload_data_path']
-#     st.markdown(f'### **Cohort: {out_path}**')
-
-# if ('sample_data_path' not in st.session_state) and ('upload_data_path' not in st.session_state):
-#     st.error('Error: Please use the Upload Data page to either submit .bed/.bim/.fam files or choose a sample cohort!')
+master_key_path = f'data/master_key_release6_final.csv'
+master_key = pd.read_csv(master_key_path, sep=',')
 
 # remove pruned samples
-master_key = st.session_state['master_key']
 master_key = master_key[master_key['pruned'] == 0]
 
 # Tab navigator for different parts of Ancestry Method
-tabPCA, tabPredStats, tabPie, tabAdmix, tabMethods = st.tabs(["Ancestry Prediction", "Model Performance", "Ancestry Distribution",\
-                                                    "Admixture Populations", "Method Description"])
+tabPCA, tabPredStats, tabPie, tabMethods = st.tabs(["Ancestry Prediction", "Model Performance", "Ancestry Distribution","Method Description"])
 
 with tabPCA:
-    ref_pca = blob_as_csv(gp2_data_bucket, f'{pca_folder}/reference_pcs.csv', sep=',')
-    proj_pca = blob_as_csv(gp2_data_bucket, f'{pca_folder}/projected_pcs.csv', sep=',')
+    ref_pca = pd.read_csv(f'data/reference_pcs.csv', sep=',')
+    proj_pca = pd.read_csv(f'data/projected_pcs.csv', sep=',')
+    proj_labels = pd.read_csv(f'data/pred_labels.txt', sep='\s+')
 
     proj_pca = proj_pca.drop(columns=['label'], axis=1)
 
     # Projected PCAs will have label "Predicted", Reference panel is labeled by ancestry 
-    proj_pca_cohort = proj_pca.merge(master_key[['GP2sampleID','label','study']], how='inner', left_on=['IID'], right_on=['GP2sampleID'])
-    proj_pca_cohort = proj_pca_cohort.drop(columns=['GP2sampleID'], axis=1)
-    proj_pca_cohort['plot_label'] = 'Predicted'
+    proj_pca = proj_pca.merge(proj_labels[['FID','IID','label']], how='inner', on=['FID','IID'])
+    proj_pca['plot_label'] = 'Predicted'
     ref_pca['plot_label'] = ref_pca['label']
 
-    total_pca = pd.concat([ref_pca, proj_pca_cohort], axis=0)
-    new_labels = proj_pca_cohort['label']
+    total_pca = pd.concat([ref_pca, proj_pca], axis=0)
+    new_labels = proj_pca['label']
 
     pca_col1, pca_col2 = st.columns([1.5,3])
     st.markdown('---')
     col1, col2 = st.columns([1.5, 3])
 
     # Get actual ancestry labels of each sample in Projected PCAs instead of "Predicted" for all samples
-    combined = proj_pca_cohort[['IID', 'label']]
+    combined = proj_pca[['IID', 'label']]
     combined_labelled = combined.rename(columns={'label': 'Predicted Ancestry'})
     holdValues = combined['label'].value_counts().rename_axis('Predicted Ancestry').reset_index(name='Counts')
 
     with pca_col1:
-        st.markdown(f'### Reference Panel vs. {st.session_state["cohort_choice"]} PCA')
+        st.markdown(f'### Reference Panel vs. UKBB Sample PCA')
         with st.expander("Description"):
             st.write('Select an Ancestry Category below to display only the Predicted samples within that label.')
 
@@ -155,7 +134,7 @@ with tabPCA:
     with pca_col2:
         # If category selected, plots Projected PCA samples in that category under label "Predicted"
         if not selectionList.empty:
-            selected_pca = proj_pca_cohort.copy()
+            selected_pca = proj_pca.copy()
             selected_pca.drop(selected_pca[np.logical_not(selected_pca['label'].isin(selectionList))].index, inplace = True)
             
             for items in selectionList:  # subsets Projected PCA by selected categories
@@ -167,19 +146,19 @@ with tabPCA:
             plot_3d(total_pca, 'plot_label')  # if no category selected, plots all samples of Projected PCA with "Predicted" label
 
     with col1:
-        st.markdown(f'### {st.session_state["cohort_choice"]} PCA')
+        st.markdown(f'### UKBB Sample PCA')
         with st.expander("Description"):
             st.write('All Predicted samples and their respective labels are listed below. Click on the table and use ⌘ Cmd + F or Ctrl + F to search for specific samples.')
         # combined_labelled = combined_labelled.set_index('IID')
         st.dataframe(combined_labelled, hide_index=True, use_container_width=True)
         
     with col2: 
-        plot_3d(proj_pca_cohort, 'label')  # only plots PCA of predicted samples
+        plot_3d(proj_pca, 'label')  # only plots PCA of predicted samples
 
 
 with tabPredStats:
     st.markdown(f'## **Model Accuracy**')
-    confusion_matrix = blob_as_csv(gp2_data_bucket, f'{pca_folder}/confusion_matrix.csv', sep=',')
+    confusion_matrix = pd.read_csv('data/confusion_matrix.csv', sep=',')
 
     if 'label' in confusion_matrix.columns:
         confusion_matrix.set_index('label', inplace=True)
@@ -225,7 +204,7 @@ with tabPie:
     pie1, pie2, pie3 = st.columns([2,1,2])
     p1, p2, p3 = st.columns([2,4,2])
 
-    ref_pca = blob_as_csv(gp2_data_bucket, f'{pca_folder}/reference_pcs.csv', sep=',')
+    ref_pca = pd.read_csv('data/reference_pcs.csv', sep=',')
 
     # Get dataframe of counts per ancestry category for reference panel
     df_ancestry_counts = ref_pca['label'].value_counts(normalize = True).rename_axis('Ancestry Category').reset_index(name='Proportion')
@@ -251,43 +230,13 @@ with tabPie:
         # st.dataframe(ref_combo)
 
     with pie3:
-        st.markdown(f'### {st.session_state["cohort_choice"]} Predicted Ancestry')
+        st.markdown(f'### UKBB Predicted Ancestry')
         plot_pie(df_new_counts)
         # st.dataframe(new_combo)
 
     # Displays dataframe of Reference Panel Counts vs. Predicted Counts per Ancestry category
     with p2:
         st.dataframe(pie_table[['Ancestry Category', 'Ref Panel Counts', 'Predicted Counts']], hide_index=True, use_container_width=True)
-
-with tabAdmix:
-    frontend_bucket_name = 'gt_app_utils'
-    frontend_bucket = get_gcloud_bucket(frontend_bucket_name)
-
-    st.markdown('## **Reference Panel Admixture Populations**')
-
-    with st.expander("Description"):
-            st.write('Results of running ADMIXTURE on the reference panel with K=10. Use the selector to subset the admixture table \
-                     by ancestry. Clicking on a column once or twice will display the table in ascending or descending order, respectively, \
-                     in terms of that column.')
-
-    ref_admix = blob_as_csv(frontend_bucket, 'ref_panel_admixture.txt')
-
-    admix_pop_info = ref_admix['ancestry']
-    admixture_output = ref_admix[['pop1', 'pop2', 'pop3', 'pop4', 'pop5', 'pop6', 'pop7', 'pop8', 'pop9', 'pop10']]
-
-    # Admix plot saved as PNG in admix_graph.py to avoid wait time for plot generation
-    admix_plot = frontend_bucket.get_blob('refpanel_admix.png')
-    admix_plot = admix_plot.download_as_bytes()
-    st.image(admix_plot)
-
-    # metadata ancestry selection
-    admix_ancestry_select()
-    admix_ancestry_choice = st.session_state['admix_ancestry_choice']
-
-    if admix_ancestry_choice != 'All':
-        ref_admix = ref_admix[ref_admix['ancestry'] == admix_ancestry_choice]
-
-    st.dataframe(ref_admix, hide_index=True, use_container_width=True)
 
 with tabMethods:
     st.markdown("## _Ancestry_")
@@ -323,7 +272,7 @@ with tabMethods:
                 the test set for prediction after model training.')
 
     st.markdown('### _UMAP + Classifier Training_')
-    st.markdown('A classifier was then trained using UMAP transformations of the PCs and a linear support vector classifier using a 5-fold\
+    st.markdown('A classifier was then trained using UMAP transformations of the PCs and a extreme gradient boosting classifier (XGBoost) using a 5-fold\
                 cross-validation using an sklearn pipeline and scored for balanced accuracy with a gridsearch over the following parameters:')
     st.markdown(
                 """
@@ -331,15 +280,11 @@ with tabMethods:
                 - “umap__n_components”: [15,25]
                 - “umap__a”: [0.75, 1.0, 1.5]
                 - “umap__b”: [0.25, 0.5, 0.75]
-                - “svc__C”: [0.001, 0.01, 0.1, 1, 10, 100]
+                - “xgb__C”: [0.001, 0.01, 0.1, 1, 10, 100]
                 """
                 )
     st.markdown('Performance varies from 95-98% balanced accuracy on the test set depending on overlapping genotypes.')
 
     st.markdown('### _Prediction_')
     st.markdown('Scaled PCs for genotypes are transformed using UMAP trained fitted by the training set and then predicted by the classifier. \
-                    Genotypes are split and output into individual ancestries. Prior to release 5, AAC and AFR labels were combined into a single category \
-                    and ADMIXTURE 1 (v1.3.0-https://dalexander.github.io/admixture/binaries/admixture_linux-1.3.0.tar.gz) was run using the --supervised functionality \
-                    to further divide these two categories where AFR was assigned if AFR admixture was >=90% and AAC was assigned if AFR admixture was <90%. \
-                    From release 5 on, the AFR and AAC sample labels in the reference panel are adjusted using a perceptron model, and the predictions based \
-                    on the updated reference panel labels effectively estimate the results from the ADMIXTURE step that was previously used.')
+                    Genotypes are split and output into individual ancestries.')

@@ -7,26 +7,21 @@ import pandas as pd
 import streamlit as st
 import plotly.graph_objects as go
 from functools import reduce
-from hold_data import blob_as_csv, get_gcloud_bucket, cohort_select, release_select, config_page
+from hold_data import config_page, place_logos
 
 config_page('Quality Control')
 
-release_select()
-
-# Pull data from different Google Cloud folders
-gp2_data_bucket = get_gcloud_bucket('gp2tier2')
+place_logos()
 
 # Get qc metrics
-qc_metrics_path = f'{st.session_state["release_bucket"]}/meta_data/qc_metrics/qc_metrics.csv'
-df_qc = blob_as_csv(gp2_data_bucket, qc_metrics_path, sep = ',')  # current version: cannot split by cohort
+qc_metrics_path = 'data/qc_metrics.csv'
+df_qc = pd.read_csv(qc_metrics_path, sep=',')
 
 # Gets master key (full GP2 release or selected cohort)
-master_key_path = f'{st.session_state["release_bucket"]}/clinical_data/master_key_release{st.session_state["release_choice"]}_final.csv'
-master_key = blob_as_csv(gp2_data_bucket, master_key_path, sep=',')
-cohort_select(master_key)
+master_key_path = f'data/master_key_release6_final.csv'
+master_key = pd.read_csv(master_key_path)
 
 # Necessary dataframes for QC Plots
-master_key = st.session_state['master_key']  # plots full GP2 release metrics by default
 st.session_state['df_qc'] = df_qc
 st.session_state['pre_sample_n'] = master_key['GP2sampleID'].count()
 st.session_state['remaining_n'] = master_key['GP2sampleID'].count()
@@ -97,16 +92,6 @@ ancestry_index = {
             'CAH':10
         }
 
-# remove CAS and MDE labels for releases 1 and 2, CAH for releases before 6
-if st.session_state['release_choice'] < 3:
-    for key in ['CAS','MDE']:
-        ancestry_dict.pop(key)
-        ancestry_index.pop(key)
-
-if st.session_state['release_choice'] < 6:
-    ancestry_dict.pop('CAH')
-    ancestry_index.pop('CAH')
-
 # Prepares dataframe for Relatedness Per Ancestry Plot
 df_3 = master_key[(master_key['related'] == 1) | (master_key['pruned_reason'] == 'duplicated_prune')]
 df_3 = df_3[['label','pruned']]
@@ -140,11 +125,9 @@ df_4.set_index('ancestry', inplace=True)
 
 ###### Variant pruning
 
-# Same variant pruning counts for all cohorts
-if st.session_state['release_choice'] == 6:
-    df_5 = df_qc
-else:
-    df_5 = df_qc.query("step == 'variant_prune'")
+
+df_5 = df_qc
+
 df_5 = df_5[['ancestry', 'pruned_count', 'metric']]
 
 # Counts per each variant filtering category in qc_metrics.csv
@@ -232,7 +215,7 @@ bar_6.update_layout(
 
 ###### Create App
 
-st.title(f'{st.session_state["cohort_choice"]} Metrics')
+st.title(f'QC Metrics')
 
 st.header('QC Step 1: Sample-Level Filtering')
 sample_exp = st.expander("Description", expanded=False)
@@ -253,10 +236,6 @@ with left_col1:
     
 with right_col1:
     if len(df_4) > 0:
-        # if st.session_state['cohort_choice'] == f'GP2 Release 3 FULL':  # will disappear if other cohort selected
-        #     st.header("**Relatedness per Ancestry**")
-        #     st.plotly_chart(bar_3)
-        # if st.session_state['release_choice'] == 4:
         st.header("**Relatedness per Ancestry**")
         st.plotly_chart(bar_3)
 
@@ -267,8 +246,7 @@ var_exp = st.expander("Description", expanded=False)
 with var_exp:
     st.markdown('Variants are pruned for missingness by case-control where P<=1e-4 to detect platform/batch differences in case-control status.\
                 Next, variants are pruned for missingness by haplotype for flanking variants where P<=1e-4. Lastly, controls are filtered for HWE \
-                at a threshold of 1e-4. Please note that for each release, variant pruning is performed in an ancestry-specific manner, and thus \
-                the numbers in the bar chart below will not change based on cohort selection within the same release.')
+                at a threshold of 1e-4.')
 
 st.header("**Variant Filtering per Ancestry**")
 st.plotly_chart(bar_6)
