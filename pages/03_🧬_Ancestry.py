@@ -6,7 +6,7 @@ import numpy as np
 import pandas as pd
 import streamlit as st
 import plotly.express as px
-from hold_data import config_page, place_logos
+from hold_data import config_page, data_count
 
 
 # Plots 3D PCA
@@ -86,11 +86,10 @@ def plot_pie(df):
 
 config_page('Ancestry')
 
-place_logos()
+data_count()
 
 # Gets master key (full GP2 release or selected cohort)
-master_key_path = f'data/master_key_release6_final.csv'
-master_key = pd.read_csv(master_key_path, sep=',')
+master_key = st.session_state['master_key']
 
 # remove pruned samples
 master_key = master_key[master_key['pruned'] == 0]
@@ -99,9 +98,9 @@ master_key = master_key[master_key['pruned'] == 0]
 tabPCA, tabPredStats, tabPie, tabMethods = st.tabs(["Ancestry Prediction", "Model Performance", "Ancestry Distribution","Method Description"])
 
 with tabPCA:
-    ref_pca = pd.read_csv(f'data/reference_pcs.csv', sep=',')
-    proj_pca = pd.read_csv(f'data/projected_pcs.csv', sep=',')
-    proj_labels = pd.read_csv(f'data/pred_labels.txt', sep='\s+')
+    proj_labels = master_key[['FID', 'IID', 'label']]
+    ref_pca = st.session_state['ref_pcs']
+    proj_pca = st.session_state['proj_pcs']
 
     proj_pca = proj_pca.drop(columns=['label'], axis=1)
 
@@ -123,7 +122,7 @@ with tabPCA:
     holdValues = combined['label'].value_counts().rename_axis('Predicted Ancestry').reset_index(name='Counts')
 
     with pca_col1:
-        st.markdown(f'### Reference Panel vs. UKBB Sample PCA')
+        st.markdown(f"### Reference Panel vs. Your Data's Full PCA")
         with st.expander("Description"):
             st.write('Select an Ancestry Category below to display only the Predicted samples within that label.')
 
@@ -146,7 +145,7 @@ with tabPCA:
             plot_3d(total_pca, 'plot_label')  # if no category selected, plots all samples of Projected PCA with "Predicted" label
 
     with col1:
-        st.markdown(f'### UKBB Sample PCA')
+        st.markdown(f"### Your Data's Full PCA")
         with st.expander("Description"):
             st.write('All Predicted samples and their respective labels are listed below. Click on the table and use ⌘ Cmd + F or Ctrl + F to search for specific samples.')
         # combined_labelled = combined_labelled.set_index('IID')
@@ -158,7 +157,7 @@ with tabPCA:
 
 with tabPredStats:
     st.markdown(f'## **Model Accuracy**')
-    confusion_matrix = pd.read_csv('data/confusion_matrix.csv', sep=',')
+    confusion_matrix = st.session_state['confusion_matrix']
 
     if 'label' in confusion_matrix.columns:
         confusion_matrix.set_index('label', inplace=True)
@@ -204,8 +203,6 @@ with tabPie:
     pie1, pie2, pie3 = st.columns([2,1,2])
     p1, p2, p3 = st.columns([2,4,2])
 
-    ref_pca = pd.read_csv('data/reference_pcs.csv', sep=',')
-
     # Get dataframe of counts per ancestry category for reference panel
     df_ancestry_counts = ref_pca['label'].value_counts(normalize = True).rename_axis('Ancestry Category').reset_index(name='Proportion')
     ref_counts = ref_pca['label'].value_counts().rename_axis('Ancestry Category').reset_index(name='Counts')
@@ -230,7 +227,7 @@ with tabPie:
         # st.dataframe(ref_combo)
 
     with pie3:
-        st.markdown(f'### UKBB Predicted Ancestry')
+        st.markdown(f"### Your Data's Predicted Ancestry")
         plot_pie(df_new_counts)
         # st.dataframe(new_combo)
 

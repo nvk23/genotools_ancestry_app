@@ -6,13 +6,19 @@ import pandas as pd
 import streamlit as st
 import streamlit.components.v1 as components
 
-from hold_data import place_logos, config_page
+from hold_data import place_logos, config_page, data_count, create_master_key
 
 
 config_page('Home')
 
-# Place logos in sidebar
-place_logos()
+# Generate master key
+# these file paths will come from genotools pipeline - can change JSON to out_path
+geno_path = 'data/ADNI_all_pheno_full'
+out_path = 'data/ADNI_all_pheno_full_genotools'
+create_master_key(geno_path, out_path)
+
+# Display data count before/after prune + logos in sidebar
+data_count()
 
 # Main title
 st.markdown("<h1 style='text-align: center; color: #0f557a; font-family: Helvetica; '>GenoTools Browser</h1>", unsafe_allow_html=True)
@@ -28,7 +34,7 @@ sent2.markdown("<h5 style='text-align: center; '>Interactive tool to visualize q
 sent2.markdown("<h5 style='text-align: center; '><a href='https://github.com/dvitale199/GenoTools'>GenoTools GitHub</a>", unsafe_allow_html=True)
 sent2.markdown("<h5 style='text-align: center; '>Preprint Coming Soon!", unsafe_allow_html=True)
 
-# # Display expander with full project description
+# Display expander with full project description
 overview = exp2.expander("Full Description", expanded=False)
 with overview:
     st.markdown('''

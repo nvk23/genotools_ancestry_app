@@ -7,28 +7,24 @@ import pandas as pd
 import streamlit as st
 import plotly.graph_objects as go
 from functools import reduce
-from hold_data import config_page, place_logos
+from hold_data import config_page, data_count
 
 config_page('Quality Control')
 
-place_logos()
+data_count()
 
-# Get qc metrics
-qc_metrics_path = 'data/qc_metrics.csv'
-df_qc = pd.read_csv(qc_metrics_path, sep=',')
-
-# Gets master key (full GP2 release or selected cohort)
-master_key_path = f'data/master_key_release6_final.csv'
-master_key = pd.read_csv(master_key_path)
+# Get derived master key and qc_df from JSON output
+master_key = st.session_state['master_key']
+df_qc = st.session_state['qc_df']
 
 # Necessary dataframes for QC Plots
 st.session_state['df_qc'] = df_qc
-st.session_state['pre_sample_n'] = master_key['GP2sampleID'].count()
-st.session_state['remaining_n'] = master_key['GP2sampleID'].count()
+st.session_state['pre_sample_n'] = master_key['IID'].count()
+st.session_state['remaining_n'] = master_key['IID'].count()
 
 ###### All-sample pruning
 
-pre_QC_total = master_key['GP2sampleID'].count()
+pre_QC_total = master_key['IID'].count()
 funnel_df = pd.DataFrame(columns=['remaining_samples', 'step'])
 funnel_df.loc[0] = pd.Series({'remaining_samples':pre_QC_total, 'step':'pre_QC'})
 
